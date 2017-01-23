@@ -4,15 +4,16 @@
 ##Consumer_Layer_ID_Field=field Consumer_Layer_with_Distance_Matrix
 ##Centre_Layer=vector
 ##Centre_Layer_ID_Field=field Centre_Layer
-##Centre_Layer_Size_Field=field Centre_Layer
+##Centre_Layer_Attractiveness_Field=field Centre_Layer
+##Huff_Exponent_Value=selection 1; 2; 3
 ##Output_Layer=output file
 
 # Script: RyersonGEo - Huff Model
 # Author: Michael Morrish
-# Date: December 18, 2016
+# Date: January 13, 2017
 #
-# This script takes in two input shapefiles and three field specifications and
-# produces Huff model probabilities.
+# This script takes in two input shapefiles, three field specifications, and
+# one numeric value to produce Huff model probabilities.
 
 
 # Imports.
@@ -26,7 +27,15 @@ lyrCentre = processing.getObject(Centre_Layer)
 # Get the fields.
 fldConsumerID_index = lyrConsumer.fieldNameIndex(Consumer_Layer_ID_Field)
 fldCentreID_index = lyrCentre.fieldNameIndex(Centre_Layer_ID_Field)
-fldCentreSize_index = lyrCentre.fieldNameIndex(Centre_Layer_Size_Field)
+fldCentreAttract_index = lyrCentre.fieldNameIndex(Centre_Layer_Attractiveness_Field)
+
+# Use dropdown list index to specify the Huff model exponent.
+if Huff_Exponent_Value == 0:
+    expHuff = 1
+elif Huff_Exponent_Value == 1:
+    expHuff = 2
+elif Huff_Exponent_Value == 2:
+    expHuff = 3
 
 # Need to prepare output layer and add new field.
 # New field is "Hi" plus the ID of the Centre.
@@ -53,11 +62,12 @@ for consumerFeature in lyrConsumer.getFeatures():
     # Capture value of fldConsumerID_index (current ID).
     currentConsumerID = consumerFeature[fldConsumerID_index]
     
-    # Create a total field for the sumJ of Sj/dij values for use in the nested loop.
+    # Create a total variable for the sumJ of Sj/dij values for use in the nested loop.
     sumJ_sjdivdij = 0.0
     
-    # Huff Formula: [(sj/dij)/(SUMj(sj/dij))] for a given consumer i and centre j.
+    # Huff Formula: [(sj/(dij)^b)/(SUMj(sj/(dij)^b))] for a given consumer i and centre j.
     # sumJ_sjdivdij is the denominator of this formula and is first loop below.
+    # Exponent b is for friction of distance of the product or service.
     # Second loop below calculates numerator and completes Huff calc for a given ij.
     
     # Loop through each Centre feature to calculate a consumer's sumJ_sjdivdij.
@@ -67,17 +77,22 @@ for consumerFeature in lyrConsumer.getFeatures():
         # Capture value of fldCentreID_index (current ID).
         currentCentreID = centreFeature[fldCentreID_index]
         
-        # Capture value of fldCentreSize_index (current Centre Size).
-        currentCentreSize = centreFeature[fldCentreSize_index]
+        # Capture value of fldCentreAttract_index (current Centre Attractiveness).
+        currentCentreAttract = centreFeature[fldCentreAttract_index]
         
         # Capture distance value for this Centre and this Consumer.
         # currentCentreID should match to field name in attrib table.
         currentDistance = consumerFeature[currentCentreID]
         
-        # Calculate Centre Size / Distance (Sj/dij)
-        sjdivdij = currentCentreSize / currentDistance
+        # Calculate Centre Attractiveness / Distance^b >> (Sj/dij**b)
         
-        # Add new Sj/dij to sumJ_sjdivdij.
+        # If statement to manage computing cost of exponent calculation.
+        if expHuff == 1:
+            sjdivdij = currentCentreAttract / currentDistance
+        else:
+            sjdivdij = currentCentreAttract / (currentDistance**expHuff)
+        
+        # Add new Sj/dij^b to sumJ_sjdivdij.
         sumJ_sjdivdij = sumJ_sjdivdij + sjdivdij
         
     # Loop through each Centre a second time to calculate Huff proportion.
@@ -86,15 +101,20 @@ for consumerFeature in lyrConsumer.getFeatures():
         # Capture value of fldCentreID_index (current ID).
         currentCentreID = centreFeature[fldCentreID_index]
         
-        # Capture value of fldCentreSize_index (current Centre Size).
-        currentCentreSize = centreFeature[fldCentreSize_index]
+        # Capture value of fldCentreAttract_index (current Centre Attractiveness).
+        currentCentreAttract = centreFeature[fldCentreAttract_index]
         
         # Capture distance value for this Centre and this Consumer.
         # currentCentreID should match to field name in attrib table.
         currentDistance = consumerFeature[currentCentreID]
         
-        # Calculate Centre Size / Distance (Sj/dij)
-        sjdivdij = currentCentreSize / currentDistance
+        # Calculate Centre Attractiveness / Distance^b >> (Sj/dij**b)
+        
+        # If statement to manage computing cost of exponent calculation.
+        if expHuff == 1:
+            sjdivdij = currentCentreAttract / currentDistance
+        else:
+            sjdivdij = currentCentreAttract / (currentDistance**expHuff)
         
         # Complete the Huff formula calculation.
         calcHuffI = sjdivdij / sumJ_sjdivdij
